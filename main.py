@@ -1,6 +1,9 @@
 # TOOO:
 # - error handling/retries when replicating
 # - test persistence on crash
+# - separate this out into logical modules (api, routes, Node, etc)
+# - Additional node metrics (read/write latency, replication stats, etc)
+# - UI for metrics
 
 import argparse
 import asyncio
@@ -40,6 +43,12 @@ class Node:
         self.data: Dict = self.load()
         self.alive_peers = set()
         self.endpoint = "http://localhost"
+
+        # Node Metrics
+        self.start_time = int(time.time())
+        self.last_leader_time = int(time.time()) if is_leader else None
+        self.writes = 0
+        self.reads = 0
 
     def load(self):
         data = {}
@@ -118,6 +127,7 @@ class Node:
             logging.info(f"Electing {self.port} as new leader")
             self.is_leader = True
             self.leader_port = self.port
+            self.last_leader_time = int(time.now())
             for peer in self.peer_ports:
                 await self.notify_new_leader(
                     peer, self.port, False
@@ -135,7 +145,7 @@ class Node:
                         peer, highest_port, False
                     )  # Notify everyone else about the new leader
 
-    async def notify_new_leader(self, peer: int, leader_port: int, new_leader: bool):
+    async def notify_new_leader(self, peer: int, leader_port: int, is_leader: bool):
         async with httpx.AsyncClient() as client:
             try:
                 await client.post(
@@ -155,6 +165,7 @@ class Node:
             {"type": "write", "key": request.key, "value": request.value}
         )
         self.data[request.key] = request.value
+        self.writes += 1
         for peer in self.alive_peers:
             await self.replicate_to_followers(peer, request)
         return True
@@ -162,6 +173,7 @@ class Node:
     async def read(self, key):
         if key not in self.data:
             return False
+        self.reads += 1
         return self.data[key]
 
     async def update_wal(self, op):
@@ -185,6 +197,43 @@ class Node:
                     pass
             except Exception as e:
                 logging.error(f"Could not persist data: {e}")
+
+    async def metrics(self):
+        uptime = int(time.time()) - self.start_time
+        leadership_time = (
+            int(time.time()) - self.last_leader_time if self.last_leader_time else 0
+        )
+
+        try:
+            wal_size = os.path.getsize(self.wal)
+        except FileNotFoundError:
+            wal_size = 0
+
+        return {
+            "node": {
+                "id": self.port,
+                "role": "leader" if self.is_leader else "follower",
+                "uptime_seconds": uptime,
+                "status": "healthy",
+            },
+            "peers": {
+                "total": len(self.peer_ports),
+                "alive": len(self.alive_peers),
+                "ports": list(self.peer_ports),
+            },
+            "writes": {
+                "total": self.writes,
+            },
+            "reads": {
+                "total": self.reads,
+            },
+            "leadership": {
+                "is_leader": self.is_leader,
+                "leader_port": self.leader_port,
+                "time_as_leader_seconds": leadership_time,
+            },
+            "storage": {"keys_count": len(self.data), "wal_size_bytes": wal_size},
+        }
 
 
 # Global node instance
@@ -223,11 +272,17 @@ async def health():
     return {"status": "alive", "is_leader": node.is_leader}
 
 
+@app.get("/metrics")
+async def metrics():
+    return await node.metrics()
+
+
 @app.post("/new_leader")
 async def new_leader(leader_info: LeaderInfoRequest):
     node.is_leader = leader_info.is_leader
     node.leader_port = leader_info.leader_port
     if node.is_leader:
+        node.last_leader_time = int(time.time())
         asyncio.create_task(node.heartbeat())
     return {"status": "updated"}
 
