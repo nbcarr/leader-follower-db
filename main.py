@@ -27,10 +27,10 @@ class Node:
         self.is_leader = is_leader
         self.port = port
         self.peer_ports = peer_ports
-        self.data: Dict = self.load()
-        self.alive_peers = set()
         self.db = "db.json"
         self.wal = "wal.log"
+        self.data: Dict = self.load()
+        self.alive_peers = set()
         self.endpoint = "http://localhost"
 
     def load(self):
@@ -88,9 +88,17 @@ class Node:
                 await self.start_election()
 
     async def start_election(self):
-        if self.port == max(self.peer_ports):
+        if not self.alive_peers:
+            highest_alive = self.port
+        else:
+            highest_alive = max(self.alive_peers | {self.port})
+
+        if self.port == highest_alive:
+            logging.info(f"Electing {self.port} as new leader")
             self.is_leader = True
-            for peer in self.peer_ports:
+            self.leader_port = self.port
+
+            for peer in self.alive_peers:
                 await self.notify_new_leader(peer)
 
     async def notify_new_leader(self, peer: int):
@@ -175,7 +183,7 @@ async def replicate(request: WriteRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "alive"}
+    return {"status": "alive", "is_leader": node.is_leader}
 
 
 @app.post("/new_leader")
