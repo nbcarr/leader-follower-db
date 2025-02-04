@@ -180,9 +180,9 @@ class Node:
         return True
 
     async def read(self, key):
+        self.reads += 1
         if key not in self.data:
             return False
-        self.reads += 1
         return self.data[key]
 
     async def update_wal(self, op):
@@ -237,7 +237,6 @@ class Node:
                 "total": self.reads,
             },
             "leadership": {
-                "is_leader": self.is_leader,
                 "leader_port": self.leader_port,
                 "time_as_leader_seconds": leadership_time,
             },
