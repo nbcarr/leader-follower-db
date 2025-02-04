@@ -1,0 +1,78 @@
+body {
+    background-color: #1a1b26;
+    color: #a9b1d6;
+    font-family: monospace;
+   }
+   
+   .container {
+    padding: 20px;
+   }
+   
+   .forms {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 20px;
+   }
+   
+   .form-group {
+    text-align: center;
+    margin: 10px 0;
+   }
+   
+   .result {
+    text-align: center;
+   }
+   
+   .metrics {
+    display: flex;
+    gap: 5px;
+    justify-content: space-evenly;
+   }
+   
+   .node {
+    background-color: #24283b;
+    border: 1px solid #414868;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+   }
+   
+   .node.leader {
+    border: 2px solid #7aa2f7;
+    box-shadow: 0 0 15px rgba(31, 99, 244, 0.573);
+   }
+   
+   .portTitle {
+    text-align: center;
+   }
+   
+   input, button {
+    background-color: #24283b;
+    color: #a9b1d6;
+    border: 1px solid #414868;
+   }
+   
+   button:hover {
+    background-color: #414868;
+   }
+   
+   .metrics-table table {
+    width: 100%;
+    border-collapse: collapse;
+   }
+   
+   .metrics-table td {
+    padding: 8px;
+    border: 1px solid #414868;
+   }
+   
+   .metrics-table td table {
+    margin: 0;
+    border: none;
+   }
+   
+   .metrics-table td td {
+    padding: 4px 8px;
+    font-family: monospace;
+    border: none;
+    background: rgba(65, 72, 104, 0.2);
+   }
