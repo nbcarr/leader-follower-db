@@ -8,6 +8,8 @@ Simple, persistent, distributed database implementation with leader-follower rep
 - Real-time metrics dashboard
 - REST API endpoints using [FastAPI](https://fastapi.tiangolo.com/)
 
+I got this idea after reading through the [Designing Data-Intensive Applications](https://dataintensive.net/) book
+
 ## Architecture
 
 The database consists of multiple nodes where one acts as a leader (accepting writes) and others as followers 
