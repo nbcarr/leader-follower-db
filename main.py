@@ -1,6 +1,5 @@
 # TOOO:
 # - error handling/retries when replicating
-# - when new leader is elected and written to, followers can't see writes
 # - test persistence on crash
 
 import argparse
@@ -23,6 +22,11 @@ app = FastAPI()
 class WriteRequest(BaseModel):
     key: str
     value: str
+
+
+class LeaderInfoRequest(BaseModel):
+    is_leader: bool
+    leader_port: int
 
 
 class Node:
@@ -70,7 +74,7 @@ class Node:
 
     async def heartbeat(self):
         while True:
-            await asyncio.sleep(15)
+            await asyncio.sleep(5)
             for peer in self.peer_ports:
                 try:
                     async with httpx.AsyncClient() as client:
@@ -79,7 +83,8 @@ class Node:
                         self.alive_peers.add(peer)
                 except Exception as e:
                     logging.error(f"Heartbeat failed for peer {peer}: {e}")
-                    self.alive_peers.remove(peer)
+                    if peer in self.alive_peers:
+                        self.alive_peers.remove(peer)
 
     async def check_leader_health(self):
         while True:
@@ -92,24 +97,52 @@ class Node:
                 await self.start_election()
 
     async def start_election(self):
-        if not self.alive_peers:
-            highest_alive = self.port
-        else:
-            highest_alive = max(self.alive_peers | {self.port})
+        # https://www.educative.io/answers/what-is-a-bully-election-algorithm
+        logging.info(f"Port {self.port} starting election")
+        higher_ports = [p for p in self.peer_ports if p > self.port]
 
-        if self.port == highest_alive:
+        highest_port = None
+        # Find highest port that is active
+        for port in higher_ports:
+            try:
+                async with httpx.AsyncClient() as client:
+                    port_health = await client.get(f"{self.endpoint}:{port}/health")
+                    if port_health.status_code == 200:
+                        highest_port = port
+            except Exception as e:
+                logging.error(f"Failed to check port: {port}: {e}")
+                continue
+
+        # Set the current port as new leader - either no other ports are active, or this is the highest one available
+        if not highest_port:
             logging.info(f"Electing {self.port} as new leader")
             self.is_leader = True
             self.leader_port = self.port
+            for peer in self.peer_ports:
+                await self.notify_new_leader(
+                    peer, self.port, False
+                )  # Notify everyone else about the new leader
+        else:  # Otherwise, elect the highest port as new leader
+            logging.info(f"Electing {highest_port} as new leader")
+            self.is_leader = False
+            self.leader_port = highest_port
+            await self.notify_new_leader(
+                highest_port, highest_port, True
+            )  # Assign highest_port as new leader and notify it
+            for peer in self.peer_ports:
+                if peer != highest_port:
+                    await self.notify_new_leader(
+                        peer, highest_port, False
+                    )  # Notify everyone else about the new leader
 
-            for peer in self.alive_peers:
-                await self.notify_new_leader(peer)
-
-    async def notify_new_leader(self, peer: int):
+    async def notify_new_leader(self, peer: int, leader_port: int, new_leader: bool):
         async with httpx.AsyncClient() as client:
             try:
-                url = f"{self.endpoint}:{peer}/new_leader"
-                await client.post(url, json={"leader_port": self.port})
+                await client.post(
+                    f"{self.endpoint}:{peer}/new_leader",
+                    json={"leader_port": leader_port, "is_leader": new_leader},
+                )
+                logging.info(f"Notified {peer} about new leader {leader_port}")
             except Exception as e:
                 logging.fatal(f"Failed to notify peer of new leader {peer}: {e}")
 
@@ -191,9 +224,11 @@ async def health():
 
 
 @app.post("/new_leader")
-async def new_leader(leader_info: dict):
-    node.is_leader = False
-    node.leader_port = leader_info["leader_port"]
+async def new_leader(leader_info: LeaderInfoRequest):
+    node.is_leader = leader_info.is_leader
+    node.leader_port = leader_info.leader_port
+    if node.is_leader:
+        asyncio.create_task(node.heartbeat())
     return {"status": "updated"}
 
 
