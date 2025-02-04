@@ -1,83 +1,186 @@
+# main.py
 from fastapi import FastAPI
+import uvicorn
+import argparse
+from pydantic import BaseModel
+from typing import Dict, List, Optional
 import asyncio
-from aiofile import AIOFile
-import time
+import httpx
+import logging
+import aiofiles
 import json
+import time
+import os
 
-class Cache:
-    def __init__(self):
-        self.cache = {}
+app = FastAPI()
 
-    def _is_expired(self, k: str):
-        item = self.cache.get(k)
-        return item and time.time() > item['expires_at']
+class WriteRequest(BaseModel):
+    key: str
+    value: str
 
-    def get(self, k: str):
-        if k not in self.cache or self._is_expired(k):
-            return {"k": k, "v": None}
-        return {"k": k, "v": self.cache[k]['value']}
-
-    def put(self, k: str, v: str, ttl: int = 86400):
-        self.cache[k] = {'value': v, 'expires_at': time.time() + ttl}
-        return {"result": "success"}
-
-    def delete(self, k: str):
-        return {"result": "success" if self.cache.pop(k, None) else "key not found"}
-
-    def cleanup(self):
-        expired_keys = [k for k, v in self.cache.items() if time.time() > v['expires_at']]
-        for key in expired_keys:
-            del self.cache[key]
-
-    async def persist(self):
-        async with AIOFile("db.json", "w") as afp:
-            await afp.write(json.dumps(self.cache))
-
-    async def load(self):
+class Node:
+    def __init__(self, is_leader: bool, port: int, peer_ports: List[int]):
+        self.leader_port = min(peer_ports) if not is_leader else port
+        self.is_leader = is_leader
+        self.port = port
+        self.peer_ports = peer_ports
+        self.data: Dict = self.load()
+        self.alive_peers = set()
+    
+    def load(self):
+        data = {}
         try:
-            async with AIOFile("db.json", "r") as afp:
-                data = await afp.read()
-                if data:
-                    self.cache = json.loads(data)
+            with open('db.json', mode='r') as f:
+                data = json.loads(f.read())
         except FileNotFoundError:
-                pass
+            print("No DB file found. Starting empty")
+                
+        try:
+            with open('wal.log', mode='r') as f:
+                for line in f.readlines():
+                    op = json.loads(line)
+                    if op['type'] == "write":
+                        data[op["key"]] = op["value"]
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            print(f"FATAL: Could not load data from WAL")
+        
+        return data
+                
+        
+    async def replicate_to_followers(self, peer: int, request: WriteRequest):
+        async with httpx.AsyncClient() as client:
+            try:
+                url = f"http://localhost:{peer}/replicate"
+                await client.post(url, json={"key": request.key, "value": request.value})
+            except Exception as e:
+                print(f"Failed to replicate to {peer}: {e}") 
 
-cache = Cache()
+    async def heartbeat(self):
+        while True:
+            await asyncio.sleep(15)
+            for peer in self.peer_ports:
+                try:
+                    async with httpx.AsyncClient() as client:
+                        await client.get(f"http://localhost:{peer}/health")
+                        print(f"Heartbeat success for peer {peer}")
+                        self.alive_peers.add(peer)
+                except Exception as e:
+                    print(f"Heartbeat failed for peer {peer}: {e}")
+                    self.alive_peers.remove(peer)
+                    
+    async def check_leader_health(self):
+        while True:
+            await asyncio.sleep(15)
+            try:
+                async with httpx.AsyncClient() as client:
+                    await client.get(f"http://localhost:{self.leader_port}/health")
+            except Exception:
+                print(f"Heartbeat failed for Leader ({self.leader_port})")
+                await self.start_election()
+                
+    async def start_election(self):
+        if self.port == max(self.peer_ports):
+            self.is_leader = True
+            for peer in self.peer_ports:
+                await self.notify_new_leader(peer)
+                
+    async def notify_new_leader(self, peer: int):
+        async with httpx.AsyncClient() as client:
+            try:
+                url = f"http://localhost:{peer}/new_leader"
+                await client.post(url, json={"leader_port": self.port})
+            except Exception as e: # This is fatal
+                print(f"Failed to notify peer of new leader {peer}: {e}") 
+        
+    async def write(self, request: WriteRequest):
+        if not self.is_leader:
+            print(f"Node: {self.port} is not leader - cannot write")
+            return False
 
-async def lifespan(app: FastAPI):
-    await cache.load()
-
-    async def cleanup_task():
+        await self.update_wal({"type": "write", "key": request.key, "value": request.value})
+        self.data[request.key] = request.value
+        for peer in self.alive_peers: #TODO: error handling/retries
+            await self.replicate_to_followers(peer, request)
+        return True
+    
+    async def read(self, key):
+        if key not in self.data:
+            return False
+        return self.data[key]
+    
+    async def update_wal(self, op):
+        timestamp = int(time.time())
+        op["timestamp"] = timestamp
+        async with aiofiles.open('wal.log', mode='a') as f:
+            try:
+                await f.write(f"{json.dumps(op)}\n")
+            except Exception as e:
+                print(f"FATAL: Could not append to WAL: {e}")
+    
+    async def persist(self):
         while True:
             await asyncio.sleep(60)
-            cache.cleanup()
+            try:
+                async with aiofiles.open('db.json', mode='w') as f:
+                    await f.write(json.dumps(self.data))
+                try:
+                    os.remove('wal.log')
+                except FileNotFoundError:
+                    pass
+            except Exception as e:
+                print(f"ERROR: Could not persist data: {e}")
 
-    async def persist_task():
-        while True:
-            await asyncio.sleep(60)
-            await cache.persist()
+# Global node instance
+node: Optional[Node] = None
 
-    cleanup_task = asyncio.create_task(cleanup_task())
-    persist_task = asyncio.create_task(persist_task())
+@app.on_event("startup")
+async def startup_event():
+    if node.is_leader:
+        asyncio.create_task(node.heartbeat())
+    else:
+        asyncio.create_task(node.check_leader_health())
+    asyncio.create_task(node.persist())
 
-    yield
-    cleanup_task.cancel()
-    persist_task.cancel()
+@app.post("/write")
+async def write(request: WriteRequest):
+    ok = await node.write(request)
+    return ok
 
-app = FastAPI(lifespan=lifespan)
+@app.get("/read/{key}")
+async def read(key: str):
+    val = await node.read(key)
+    return val
 
-@app.get("/get")
-async def handle_get(k: str):
-    return cache.get(k)
+@app.post("/replicate")
+async def replicate(request: WriteRequest):
+    node.data[request.key] = request.value
+    return True
 
-@app.post("/put")
-async def handle_post(k: str, v: str):
-    return cache.put(k, v)
+@app.get("/health")
+async def health():
+    return {"status": "alive"}
 
-@app.post("/delete")
-async def handle_delete(k: str):
-    return cache.delete(k)
+@app.post("/new_leader")
+async def new_leader(leader_info: dict):
+    node.is_leader = False
+    node.leader_port = leader_info["leader_port"]
+    return {"status": "updated"}
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--role", choices=["leader", "follower"], required=True)
+    parser.add_argument("--port", type=int, required=True)
+    parser.add_argument("--peers", type=int, nargs="+", help="Ports of peer nodes", required=True)
+    
+    args = parser.parse_args()
+    
+    logging.basicConfig(level=logging.INFO)
+    node = Node(
+        is_leader=(args.role == "leader"),
+        port=args.port,
+        peer_ports=args.peers
+    )
+    
+    uvicorn.run(app, host="localhost", port=args.port)
