@@ -1,4 +1,8 @@
-# main.py
+# TOOO:
+# - error handling/retries when replicating
+# - when new leader is elected and written to, followers can't see writes
+# - test persistence on crash
+
 import argparse
 import asyncio
 import json
@@ -118,7 +122,7 @@ class Node:
             {"type": "write", "key": request.key, "value": request.value}
         )
         self.data[request.key] = request.value
-        for peer in self.alive_peers:  # TODO: error handling/retries
+        for peer in self.alive_peers:
             await self.replicate_to_followers(peer, request)
         return True
 
