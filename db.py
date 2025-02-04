@@ -18,8 +18,17 @@ import httpx
 import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"], # For UI
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class WriteRequest(BaseModel):
@@ -127,7 +136,7 @@ class Node:
             logging.info(f"Electing {self.port} as new leader")
             self.is_leader = True
             self.leader_port = self.port
-            self.last_leader_time = int(time.now())
+            self.last_leader_time = int(time.time())
             for peer in self.peer_ports:
                 await self.notify_new_leader(
                     peer, self.port, False
