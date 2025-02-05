@@ -12,6 +12,7 @@ export default function App() {
   const [readValue, setReadValue] = useState(null);
   const [dataBoxIsChecked, setDataBoxIsChecked] = useState(false);
   const [selectedPort, setSelectedPort] = useState(null);
+  const [isLeader, setIsLeader] = useState(null);
   const ports = [8000, 8001, 8002]; //hardcoded for now
 
   useEffect(() => {
@@ -30,7 +31,11 @@ export default function App() {
           metricsData[port] = errMsg;
           allData[port] = errMsg;
         }
+        if (metricsData[port]?.node?.role == "leader") {
+          setIsLeader(port);
+        }
       }
+      
       setMetrics(metricsData);
       setData(allData);
     };
@@ -125,7 +130,7 @@ export default function App() {
         {ports.map((port) => (
           <div
             className={`node ${
-              metrics[port]?.node?.role === "leader" ? "leader" : ""
+              port === isLeader ? "leader" : ""
             } 
                               ${selectedPort === port ? "selected" : ""}`}
             key={port}
