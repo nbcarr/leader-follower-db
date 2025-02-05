@@ -168,7 +168,7 @@ class Node:
 
     async def write(self, request: WriteRequest):
         logging.info(
-            f"Node {self.port} received write request: (k: {request.key}, v: {request.value})"
+            f"Node {self.port} RECEIVED write request: (k: {request.key}, v: {request.value})"
         )
         if not self.is_leader:
             logging.info(f"Node: {self.port} is not leader - cannot write")
@@ -181,13 +181,17 @@ class Node:
         self.writes += 1
         for peer in self.alive_peers:
             await self.replicate_to_followers(peer, request)
+        logging.info(
+            f"Node {self.port} COMPLETED write request: (k: {request.key}, v: {request.value})"
+        )
         return True
 
     async def read(self, key):
-        logging.info(f"Node {self.port} received read request: (k: {key})")
+        logging.info(f"Node {self.port} RECEIVED read request: (k: {key})")
         self.reads += 1
         if key not in self.data:
             return False
+        logging.info(f"Node {self.port} COMPLETED read request: (k: {key})")
         return self.data[key]
 
     async def update_wal(self, op):
@@ -314,16 +318,14 @@ async def new_leader(leader_info: LeaderInfoRequest):
 async def websocket_endpoint(websocket: WebSocket, port: int):
     await websocket.accept()
     log_file = f"node_{port}.log"
-    conn_time = int(time.time())
 
     async def watch_logs():
         async with aiofiles.open(log_file, mode="r") as f:
+            await f.seek(0, 2)
             while True:
                 line = await f.readline()
                 if line:
-                    timestamp = float(line.split(" - ")[0])
-                    if timestamp > conn_time:
-                        await websocket.send_text(line)
+                    await websocket.send_text(line)
                 await asyncio.sleep(0.1)
 
     try:
@@ -344,7 +346,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(
         level=logging.INFO,
-        format="%(created)f - %(asctime)s - %(levelname)s - %(message)s",
+        format="%(asctime)s - %(levelname)s - %(message)s",
         handlers=[
             logging.FileHandler(f"node_{args.port}.log"),
             logging.StreamHandler(),
