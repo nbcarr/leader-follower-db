@@ -86,3 +86,25 @@ body {
    .data-table.hidden {
     display: none;
    } 
+
+   .node {
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    outline: none;
+  }
+  
+  .node:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  }
+  
+  .node.selected {
+    border: 2px solid #4a9eff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(74, 158, 255, 0.3);
+  }
+  
+  .node.selected:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(74, 158, 255, 0.4);
+  }

@@ -11,6 +11,7 @@ export default function App() {
   const [readKey, setReadKey] = useState('');
   const [readValue, setReadValue] = useState(null);
   const [dataBoxIsChecked, setDataBoxIsChecked] = useState(false);
+  const [selectedPort, setSelectedPort] = useState(null);
   const ports = [8000, 8001, 8002]; //hardcoded for now
 
 
@@ -80,6 +81,10 @@ export default function App() {
     }
   };
 
+  const handlePortSelect = (port) => {
+    setSelectedPort(port === selectedPort ? null : port);
+  };
+
   return (
     <div className="container">
       <div className='forms'>
@@ -103,7 +108,14 @@ export default function App() {
   
       <div className="metrics">
         {ports.map(port => (
-          <div className={`node ${metrics[port]?.node?.role === 'leader' ? 'leader' : ''}`} key={port}>
+                    <div 
+                    className={`node ${metrics[port]?.node?.role === 'leader' ? 'leader' : ''} 
+                              ${selectedPort === port ? 'selected' : ''}`}
+                    key={port} 
+                    onClick={() => handlePortSelect(port)}
+                    role="button"
+                    tabIndex={0}
+                  >
             <h2 className="portTitle">Port {port}</h2>
             <div className="metrics-table">
               <JsonToTable json={metrics[port]} />
