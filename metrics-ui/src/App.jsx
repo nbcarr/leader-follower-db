@@ -137,7 +137,9 @@ export default function App() {
             role="button"
             tabIndex={0}
           >
-            <h2 className="portTitle">Port {port} {port === isLeader ? "(leader)" : ""}</h2>
+            <h2 className="portTitle">
+              Port {port} {port === isLeader ? "(leader)" : ""}
+            </h2>
             <div className="metrics-table">
               <JsonToTable json={metrics[port]} />
               <div
@@ -151,7 +153,7 @@ export default function App() {
           </div>
         ))}
       </div>
-        <LogTable selectedPort={selectedPort} />
+      <LogTable selectedPort={selectedPort} />
     </div>
   );
 }

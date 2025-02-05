@@ -81,6 +81,7 @@ class Node:
         return data
 
     async def replicate_to_followers(self, peer: int, request: WriteRequest):
+        logging.info(f"Starting replicate from {self.port}...")
         async with httpx.AsyncClient() as client:
             try:
                 url = f"{self.endpoint}:{peer}/replicate"
@@ -106,7 +107,7 @@ class Node:
 
     async def check_leader_health(self):
         while True:
-            await asyncio.sleep(15)
+            await asyncio.sleep(10)
             try:
                 async with httpx.AsyncClient() as client:
                     await client.get(f"{self.endpoint}:{self.leader_port}/health")
@@ -166,6 +167,9 @@ class Node:
                 logging.fatal(f"Failed to notify peer of new leader {peer}: {e}")
 
     async def write(self, request: WriteRequest):
+        logging.info(
+            f"Node {self.port} received write request: (k: {request.key}, v: {request.value})"
+        )
         if not self.is_leader:
             logging.info(f"Node: {self.port} is not leader - cannot write")
             return False
@@ -180,12 +184,14 @@ class Node:
         return True
 
     async def read(self, key):
+        logging.info(f"Node {self.port} received read request: (k: {key})")
         self.reads += 1
         if key not in self.data:
             return False
         return self.data[key]
 
     async def update_wal(self, op):
+        logging.info(f"Node {self.port} updating WAL...")
         timestamp = int(time.time())
         op["timestamp"] = timestamp
         async with aiofiles.open(self.wal, mode="a") as f:
@@ -195,6 +201,7 @@ class Node:
                 logging.fatal(f"Could not append to WAL: {e}")
 
     async def persist(self):
+        logging.info(f"Node {self.port} persisting data...")
         while True:
             await asyncio.sleep(60)
             try:
