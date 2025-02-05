@@ -11,15 +11,15 @@ import json
 import logging
 import os
 import time
+from datetime import datetime
 from typing import Dict, List, Optional
 
 import aiofiles
 import httpx
 import uvicorn
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-
+from pydantic import BaseModel
 
 app = FastAPI()
 
@@ -159,7 +159,7 @@ class Node:
             try:
                 await client.post(
                     f"{self.endpoint}:{peer}/new_leader",
-                    json={"leader_port": leader_port, "is_leader": new_leader},
+                    json={"leader_port": leader_port, "is_leader": is_leader},
                 )
                 logging.info(f"Notified {peer} about new leader {leader_port}")
             except Exception as e:
@@ -303,6 +303,28 @@ async def new_leader(leader_info: LeaderInfoRequest):
     return {"status": "updated"}
 
 
+@app.websocket("/ws/logs/{port}")
+async def websocket_endpoint(websocket: WebSocket, port: int):
+    await websocket.accept()
+    log_file = f"node_{port}.log"
+    conn_time = int(time.time())
+
+    async def watch_logs():
+        async with aiofiles.open(log_file, mode="r") as f:
+            while True:
+                line = await f.readline()
+                if line:
+                    timestamp = float(line.split(" - ")[0])
+                    if timestamp > conn_time:
+                        await websocket.send_text(line)
+                await asyncio.sleep(0.1)
+
+    try:
+        await watch_logs()
+    except WebSocketDisconnect:
+        pass
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--role", choices=["leader", "follower"], required=True)
@@ -315,7 +337,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
+        format="%(created)f - %(asctime)s - %(levelname)s - %(message)s",
         handlers=[
             logging.FileHandler(f"node_{args.port}.log"),
             logging.StreamHandler(),

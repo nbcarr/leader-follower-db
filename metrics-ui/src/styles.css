@@ -35,11 +35,12 @@ body {
     border: 1px solid #414868;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
    }
-   
+
+  /* 
    .node.leader {
-    border: 2px solid #7aa2f7;
-    box-shadow: 0 0 15px rgba(31, 99, 244, 0.573);
+    box-shadow: 0 0 40px rgba(244, 31, 187, 0.573);
    }
+*/
    
    .portTitle {
     text-align: center;
@@ -94,17 +95,61 @@ body {
   }
   
   .node:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    transform: translateY(-5px);    
   }
   
   .node.selected {
     border: 2px solid #4a9eff;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(74, 158, 255, 0.3);
+    box-shadow: 0 4px 30px rgba(74, 158, 255, 0.3);
   }
   
   .node.selected:hover {
     transform: translateY(-3px);
     box-shadow: 0 6px 12px rgba(74, 158, 255, 0.4);
+  }
+
+  .log-table {
+    text-align: center;
+    margin-top: 20px;
+    padding: 10px;
+    border: 5px solid white;
+  }
+
+  .log-container {
+    margin-top: 20px;
+    padding: 10px;
+    border: 5px solid white;
+  }
+  
+  .log-window {
+    height: 400px;
+    overflow-y: auto;
+    background: #1a1a1a;
+    font-family: monospace;
+    padding: 15px;
+    color: #fff;
+  }
+  
+  .log-line {
+    white-space: pre-wrap;
+    padding: 3px 0;
+    font-size: 14px;
+  }
+  
+  .log-line.error {
+    color: #ff6b6b;
+  }
+  
+  .log-line.warn {
+    color: #ffd93d;
+  }
+  
+  .log-line.info {
+    color: #4dacff;
+  }
+  
+  .log-empty {
+    color: #666;
+    font-style: italic;
   }

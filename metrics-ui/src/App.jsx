@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { JsonToTable } from "react-json-to-table";
 import "./styles.css";
+import LogTable from "./LogTable";
 
 export default function App() {
   const [metrics, setMetrics] = useState({});
@@ -35,7 +36,7 @@ export default function App() {
           setIsLeader(port);
         }
       }
-      
+
       setMetrics(metricsData);
       setData(allData);
     };
@@ -129,16 +130,14 @@ export default function App() {
       <div className="metrics">
         {ports.map((port) => (
           <div
-            className={`node ${
-              port === isLeader ? "leader" : ""
-            } 
+            className={`node ${port === isLeader ? "leader" : ""} 
                               ${selectedPort === port ? "selected" : ""}`}
             key={port}
             onClick={() => handlePortSelect(port)}
             role="button"
             tabIndex={0}
           >
-            <h2 className="portTitle">Port {port}</h2>
+            <h2 className="portTitle">Port {port} {port === isLeader ? "(leader)" : ""}</h2>
             <div className="metrics-table">
               <JsonToTable json={metrics[port]} />
               <div
@@ -152,6 +151,7 @@ export default function App() {
           </div>
         ))}
       </div>
+        <LogTable selectedPort={selectedPort} />
     </div>
   );
 }
