@@ -4,30 +4,39 @@ import './styles.css'
 
 export default function App() {
   const [metrics, setMetrics] = useState({});
+  const [data, setData] = useState({});
   const [key, setKey] = useState('');
   const [value, setValue] = useState('');
   const [writeResult, setWriteResult] = useState('');
   const [readKey, setReadKey] = useState('');
   const [readValue, setReadValue] = useState(null);
+  const [dataBoxIsChecked, setDataBoxIsChecked] = useState(false);
   const ports = [8000, 8001, 8002]; //hardcoded for now
 
 
   useEffect(() => {
     const getMetrics = async () => {
-      const data = {};
+      const metricsData = {};
+      const allData = {};
       for (const port of ports) {
         try {
-          const res = await fetch(`http://localhost:${port}/metrics`);
-          data[port] = await res.json();
+          const metrics = await fetch(`http://localhost:${port}/metrics`);
+          metricsData[port] = await metrics.json();
+
+          const dump = await fetch(`http://localhost:${port}/dump`);
+          allData[port] = await dump.json();
         } catch (err) {
-          data[port] = { error: 'Failed to connect' };
+          const errMsg =  { error: 'Failed to connect' }; 
+          metricsData[port] = errMsg;
+          allData[port] = errMsg;
         }
       }
-      setMetrics(data);
+      setMetrics(metricsData);
+      setData(allData);
     };
 
     getMetrics();
-    const interval = setInterval(getMetrics, 1000);
+    const interval = setInterval(getMetrics, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -86,6 +95,10 @@ export default function App() {
           <button>Read</button>
         </form>
       {readValue && <div className="result">Result: {readValue}</div>}
+      <div>
+      <input id="data-checkbox" type="checkbox" checked={dataBoxIsChecked} onChange={e => setDataBoxIsChecked(!dataBoxIsChecked)}/>
+      <label for="data-checkbox">Show Node Data</label>
+      </div>
       </div>
   
       <div className="metrics">
@@ -94,6 +107,9 @@ export default function App() {
             <h2 className="portTitle">Port {port}</h2>
             <div className="metrics-table">
               <JsonToTable json={metrics[port]} />
+              <div className={`data-table ${dataBoxIsChecked ? 'visible' : 'hidden'}`}>
+              <JsonToTable json={data[port]} />
+              </div>
             </div>
           </div>
         ))}

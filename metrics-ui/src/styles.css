@@ -54,6 +54,12 @@ body {
    button:hover {
     background-color: #414868;
    }
+
+   .metrics-table {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+   }
    
    .metrics-table table {
     width: 100%;
@@ -76,3 +82,7 @@ body {
     border: none;
     background: rgba(65, 72, 104, 0.2);
    }
+
+   .data-table.hidden {
+    display: none;
+   } 

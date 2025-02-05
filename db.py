@@ -25,7 +25,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"], # For UI
+    allow_origins=["http://localhost:5173"],  # For UI
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -243,6 +243,9 @@ class Node:
             "storage": {"keys_count": len(self.data), "wal_size_bytes": wal_size},
         }
 
+    async def dump(self):
+        return self.data
+
 
 # Global node instance
 node: Optional[Node] = None
@@ -283,6 +286,11 @@ async def health():
 @app.get("/metrics")
 async def metrics():
     return await node.metrics()
+
+
+@app.get("/dump")
+async def dump():
+    return await node.dump()
 
 
 @app.post("/new_leader")
