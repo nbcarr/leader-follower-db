@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 export default function Options({
-  ports,
+  nodes,
   dataBoxIsChecked,
   setDataBoxIsChecked,
 }) {
@@ -13,9 +13,9 @@ export default function Options({
 
   const handleWrite = async (e) => {
     e.preventDefault();
-    for (const port of ports) {
+    for (const node of nodes) {
       try {
-        await fetch(`http://localhost:${port}/write`, {
+        await fetch(`http://localhost:${node.port}/write`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ key, value }),
@@ -33,10 +33,12 @@ export default function Options({
 
   const handleRead = async (e) => {
     e.preventDefault();
-    const shuffledPorts = ports.sort(() => Math.random() - 0.5); // evenly distribute reads
-    for (const port of shuffledPorts) {
+    const shuffledPorts = nodes.sort(() => Math.random() - 0.5); // evenly distribute reads
+    for (const node of shuffledPorts) {
       try {
-        const res = await fetch(`http://localhost:${port}/read/${readKey}`);
+        const res = await fetch(
+          `http://localhost:${node.port}/read/${readKey}`
+        );
         const val = await res.json();
         if (val !== false) {
           setReadValue(val);
@@ -46,7 +48,7 @@ export default function Options({
           break;
         }
       } catch (err) {
-        console.error(`Failed to read from ${port}:`, err);
+        console.error(`Failed to read from ${node.port}:`, err);
       }
     }
   };

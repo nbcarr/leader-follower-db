@@ -153,3 +153,17 @@ body {
     color: #666;
     font-style: italic;
   }
+
+  .controller {
+    margin-top: 20px;
+    padding: 10px;
+  }
+  
+  .node-entry {
+    margin: 5px 0;
+    padding: 5px;
+  }
+  
+  .controller input {
+    margin-right: 10px;
+  }

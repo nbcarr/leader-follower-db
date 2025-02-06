@@ -3,6 +3,7 @@ import os
 import signal
 import subprocess
 from typing import List, Optional
+import requests
 
 import uvicorn
 from fastapi import FastAPI
@@ -38,7 +39,11 @@ class Controller:
         self.active_nodes = {}
 
     def list_nodes(self):
-        return {"nodes": self.active_nodes}
+        return {
+            "nodes": [
+                {"port": port, "pid": pid} for port, pid in self.active_nodes.items()
+            ]
+        }
 
     def start_node(self, role: str, port: int, peers: List[int]):
         logging.info(f"Requested to start {port} with role {role} and peers {peers}")
@@ -46,6 +51,16 @@ class Controller:
         process = subprocess.Popen(cmd.split())
         self.active_nodes[port] = process.pid
         logging.info(f"Successfully started node on port {port} (pid: {process.pid})")
+
+        for peer_port in peers:
+            try:
+                requests.post(
+                    f"http://localhost:{peer_port}/new_peer",
+                    json={"new_peer_port": port},
+                )
+            except Exception as e:
+                logging.error(f"Failed to notify {peer_port} about new node: {e}")
+
         return {"status": "started", "port": port, "pid": process.pid}
 
     def kill_node(self, port):

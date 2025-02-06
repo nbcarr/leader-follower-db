@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { JsonToTable } from "react-json-to-table";
 
 export default function MetricsTable({
-  ports,
+  nodes,
   dataBoxIsChecked,
   selectedPort,
   setSelectedPort,
@@ -15,20 +15,20 @@ export default function MetricsTable({
     const getMetrics = async () => {
       const metricsData = {};
       const allData = {};
-      for (const port of ports) {
+      for (const node of nodes) {
         try {
-          const metrics = await fetch(`http://localhost:${port}/metrics`);
-          metricsData[port] = await metrics.json();
+          const metrics = await fetch(`http://localhost:${node.port}/metrics`);
+          metricsData[node.port] = await metrics.json();
 
-          const dump = await fetch(`http://localhost:${port}/dump`);
-          allData[port] = await dump.json();
+          const dump = await fetch(`http://localhost:${node.port}/dump`);
+          allData[node.port] = await dump.json();
         } catch (err) {
-          const errMsg = { error: "Failed to connect" };
-          metricsData[port] = errMsg;
-          allData[port] = errMsg;
+          const errMsg = { "loading...": "" };
+          metricsData[node.port] = errMsg;
+          allData[node.port] = errMsg;
         }
-        if (metricsData[port]?.node?.role == "leader") {
-          setIsLeader(port);
+        if (metricsData[node.port]?.node?.role == "leader") {
+          setIsLeader(node.port);
         }
       }
 
@@ -39,7 +39,7 @@ export default function MetricsTable({
     getMetrics();
     const interval = setInterval(getMetrics, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [nodes]);
 
   const handlePortSelect = (port) => {
     setSelectedPort(port === selectedPort ? null : port);
@@ -47,26 +47,26 @@ export default function MetricsTable({
 
   return (
     <div className="metrics">
-      {ports.map((port) => (
+      {nodes.map((node) => (
         <div
-          className={`node ${port === isLeader ? "leader" : ""} 
-                              ${selectedPort === port ? "selected" : ""}`}
-          key={port}
-          onClick={() => handlePortSelect(port)}
+          className={`node ${node.port === isLeader ? "leader" : ""} 
+                              ${selectedPort === node.port ? "selected" : ""}`}
+          key={node.port}
+          onClick={() => handlePortSelect(node.port)}
           role="button"
           tabIndex={0}
         >
           <h2 className="portTitle">
-            Port {port} {port === isLeader ? "(leader)" : ""}
+            Port {node.port} {node.port === isLeader ? "(leader)" : ""}
           </h2>
           <div className="metrics-table">
-            <JsonToTable json={metrics[port]} />
+            <JsonToTable json={metrics[node.port]} />
             <div
               className={`data-table ${
                 dataBoxIsChecked ? "visible" : "hidden"
               }`}
             >
-              <JsonToTable json={data[port]} />
+              <JsonToTable json={data[node.port]} />
             </div>
           </div>
         </div>

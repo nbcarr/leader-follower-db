@@ -41,8 +41,17 @@ class LeaderInfoRequest(BaseModel):
     leader_port: int
 
 
+class NewPeerInfo(BaseModel):
+    new_peer_port: int
+
+
+class PeerInfo(BaseModel):
+    peer_port: int
+
+
 class Node:
     def __init__(self, is_leader: bool, port: int, peer_ports: List[int]):
+        peer_ports = peer_ports or []
         self.leader_port = min(peer_ports) if not is_leader else port
         self.is_leader = is_leader
         self.port = port
@@ -314,6 +323,22 @@ async def new_leader(leader_info: LeaderInfoRequest):
     return {"status": "updated"}
 
 
+@app.post("/new_peer")
+async def new_peer(new_peer_info: NewPeerInfo):
+    if new_peer_info.new_peer_port not in node.peer_ports:
+        node.peer_ports.append(new_peer_info.new_peer_port)
+    return {"status": "updated"}
+
+
+@app.post("/remove_peer")
+async def remove_peer(peer_info: PeerInfo):
+    if peer_info.peer_port in node.peer_ports:
+        node.peer_ports.remove(peer_info.peer_port)
+    if peer_info.peer_port in node.alive_peers:
+        node.alive_peers.remove(peer_info.peer_port)
+    return {"status": "updated"}
+
+
 @app.websocket("/ws/logs/{port}")
 async def websocket_endpoint(websocket: WebSocket, port: int):
     await websocket.accept()
@@ -339,7 +364,7 @@ if __name__ == "__main__":
     parser.add_argument("--role", choices=["leader", "follower"], required=True)
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument(
-        "--peers", type=int, nargs="+", help="Ports of peer nodes", required=True
+        "--peers", type=int, nargs="*", default=[], help="Ports of peer nodes"
     )
 
     args = parser.parse_args()
