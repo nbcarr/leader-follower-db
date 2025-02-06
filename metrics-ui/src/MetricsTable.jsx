@@ -23,7 +23,7 @@ export default function MetricsTable({
           const dump = await fetch(`http://localhost:${node.port}/dump`);
           allData[node.port] = await dump.json();
         } catch (err) {
-          const errMsg = { "loading...": "" };
+          const errMsg = { "": "loading..." };
           metricsData[node.port] = errMsg;
           allData[node.port] = errMsg;
         }
@@ -37,7 +37,7 @@ export default function MetricsTable({
     };
 
     getMetrics();
-    const interval = setInterval(getMetrics, 10000);
+    const interval = setInterval(getMetrics, 1000);
     return () => clearInterval(interval);
   }, [nodes]);
 
