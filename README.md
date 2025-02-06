@@ -2,7 +2,7 @@
 
 Persistent distributed database implementation with leader-follower replication and automatic leader election, and a front-end dashboard to interact and monitor the nodes
 
-For front-end demo, click [here](https://github.com/nbcarr/leader-follower-db/edit/main/README.md#ui-demo)
+For front-end demo, click [here](https://github.com/nbcarr/leader-follower-db/blob/main/README.md#ui-demo)
 
 ## Back-End Overview (Python)
 - [Leader-follower architecture](https://www.educative.io/answers/leader-and-follower-replication) for data replication
